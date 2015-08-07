@@ -180,6 +180,24 @@ public class IdManager implements IIdManager, InitializingBean, DisposableBean {
 	}
 
 	/**
+	 * MHU: introduced for JMH tests.
+	 */
+	public void setPlatform() {
+		platformId = 42;
+	}
+	
+	/**
+	 * MHU: introduced for JMH tests.
+	 */
+	public void addMethodId(long jmhMethodId) {
+		methodIdMap.put(jmhMethodId, jmhMethodId);
+	}
+	
+	public void addSensorTypeId(long jmhSensorTypeId) {
+		sensorTypeIdMap.put(jmhSensorTypeId, jmhSensorTypeId);
+	}
+	
+	/**
 	 * {@inheritDoc}
 	 */
 	public long getPlatformId() throws IdNotAvailableException {
@@ -205,7 +223,7 @@ public class IdManager implements IIdManager, InitializingBean, DisposableBean {
 					registrationThread.registerPlatform();
 				} catch (Throwable throwable) { // NOPMD
 					serverErrorOccured = true;
-					log.warn("Could not register the platform even though the connection seems to be established, will try later!");
+//					log.warn("Could not register the platform even though the connection seems to be established, will try later!");
 					throw new IdNotAvailableException("Could not register the platform even though the connection seems to be established, will try later!", throwable);
 				}
 			} else {

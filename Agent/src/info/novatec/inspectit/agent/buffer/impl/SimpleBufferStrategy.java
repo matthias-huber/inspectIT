@@ -2,6 +2,7 @@ package info.novatec.inspectit.agent.buffer.impl;
 
 import info.novatec.inspectit.agent.buffer.AbstractBufferStrategy;
 import info.novatec.inspectit.agent.buffer.IBufferStrategy;
+import info.novatec.inspectit.communication.DefaultData;
 import info.novatec.inspectit.communication.MethodSensorData;
 import info.novatec.inspectit.spring.logger.Log;
 
@@ -18,7 +19,7 @@ import org.slf4j.Logger;
  * @author Patrice Bouillet
  * 
  */
-public class SimpleBufferStrategy extends AbstractBufferStrategy<MethodSensorData> implements IBufferStrategy<MethodSensorData> {
+public class SimpleBufferStrategy extends AbstractBufferStrategy<DefaultData> implements IBufferStrategy<DefaultData> {
 
 	/**
 	 * The logger of the class.
@@ -29,17 +30,19 @@ public class SimpleBufferStrategy extends AbstractBufferStrategy<MethodSensorDat
 	/**
 	 * Stores the reference to the last given measurements.
 	 */
-	private List<MethodSensorData> measurements;
+	private List<DefaultData> measurements;
 
 	/**
 	 * True if measurements were added and available.
 	 */
 	private volatile boolean newMeasurements = false;
 
+
+	
 	/**
 	 * {@inheritDoc}
 	 */
-	public final void addMeasurements(final List<MethodSensorData> measurements) {
+	public final void addMeasurements(final List<DefaultData> measurements) {
 		if (null == measurements) {
 			throw new IllegalArgumentException("Measurements cannot be null!");
 		}
@@ -67,7 +70,7 @@ public class SimpleBufferStrategy extends AbstractBufferStrategy<MethodSensorDat
 	/**
 	 * {@inheritDoc}
 	 */
-	public final List<MethodSensorData> next() {
+	public final List<DefaultData> next() {
 		synchronized (this) {
 			if (newMeasurements) {
 				newMeasurements = false;
@@ -92,4 +95,7 @@ public class SimpleBufferStrategy extends AbstractBufferStrategy<MethodSensorDat
 		// nothing to do
 	}
 
+	public int size() {
+		return this.measurements.size();
+	}
 }

@@ -10,6 +10,7 @@ import info.novatec.inspectit.agent.hooking.IConstructorHook;
 import info.novatec.inspectit.agent.hooking.IMethodHook;
 import info.novatec.inspectit.communication.data.ParameterContentData;
 import info.novatec.inspectit.communication.data.TimerData;
+import info.novatec.inspectit.util.ITimer;
 import info.novatec.inspectit.util.StringConstraint;
 import info.novatec.inspectit.util.ThreadLocalStack;
 import info.novatec.inspectit.util.Timer;
@@ -45,7 +46,7 @@ public class AverageTimerHook implements IMethodHook, IConstructorHook {
 	/**
 	 * The timer used for accurate measuring.
 	 */
-	private final Timer timer;
+	private final ITimer timer;
 
 	/**
 	 * The ID manager.
@@ -74,7 +75,7 @@ public class AverageTimerHook implements IMethodHook, IConstructorHook {
 	 * @param param
 	 *            Additional parameters.
 	 */
-	public AverageTimerHook(Timer timer, IIdManager idManager, IPropertyAccessor propertyAccessor, Map<String, Object> param) {
+	public AverageTimerHook(ITimer timer, IIdManager idManager, IPropertyAccessor propertyAccessor, Map<String, Object> param) {
 		this.timer = timer;
 		this.idManager = idManager;
 		this.propertyAccessor = propertyAccessor;
@@ -119,10 +120,9 @@ public class AverageTimerHook implements IMethodHook, IConstructorHook {
 		TimerData timerData = (TimerData) coreService.getMethodSensorData(sensorTypeId, methodId, prefix);
 
 		if (null == timerData) {
-			try {
-				long platformId = idManager.getPlatformId();
-				long registeredSensorTypeId = idManager.getRegisteredSensorTypeId(sensorTypeId);
-				long registeredMethodId = idManager.getRegisteredMethodId(methodId);
+				long platformId = 555L;
+				long registeredSensorTypeId = 666L;
+				long registeredMethodId = 777L;
 
 				Timestamp timestamp = new Timestamp(System.currentTimeMillis() - Math.round(duration));
 
@@ -133,11 +133,6 @@ public class AverageTimerHook implements IMethodHook, IConstructorHook {
 				timerData.calculateMax(duration);
 
 				coreService.addMethodSensorData(sensorTypeId, methodId, prefix, timerData);
-			} catch (IdNotAvailableException e) {
-				if (LOG.isDebugEnabled()) {
-					LOG.debug("Could not save the average timer data because of an unavailable id. " + e.getMessage());
-				}
-			}
 		} else {
 			timerData.increaseCount();
 			timerData.addDuration(duration);

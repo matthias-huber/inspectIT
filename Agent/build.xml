@@ -10,7 +10,6 @@
 		version 5 and upward).
 	</description>
 
-
 	<!-- *************************************************************** -->
 	<!--                      S E T T I N G S                            -->
 	<!-- *************************************************************** -->
@@ -116,34 +115,21 @@
 		<!-- ship classes that are instrumented with cobertura to the customer -->
 		<fileset id="test.classes-to-instrument" dir="${build.agent.classes}" includes="**/*.class" />
 
-		<property name="test.workingDir" value="${basedir}"/>
-		<property name="test.javac.source" value="1.5"/>
-		<property name="test.javac.target" value="1.5"/>
-		<property name="test.vmargs" value=""/>
-		<property name="test.targetsuite" value="${testng.file}"/>
+		<property name="test.workingDir" value="${basedir}" />
+		<property name="test.javac.source" value="1.5" />
+		<property name="test.javac.target" value="1.5" />
+		<property name="test.vmargs" value="" />
+		<property name="test.targetsuite" value="${testng.file}" />
 
-		<execute-testng 
-			src.root="${src.root}" 
-			test.root="${test.root}" 
-			build.qa.test="${build.qa.test}"
-			build.qa.test.testdata="${build.qa.test.testdata}" 
-			build.qa.test.coveragedata="${build.qa.test.coveragedata}" 
-			build.test.classes="${build.test.classes}" 
-			build.instrumented.classes="${build.instrumented.classes}"
-			test.workingdir="${test.workingDir}"
-			test.javac.source="${test.javac.source}" 
-			test.javac.target="${test.javac.target}"
-			test.targetsuite="${test.targetsuite}"
-			test.vmargs="${test.vmargs}"
-			test.haltonfailure="true">
+		<execute-testng src.root="${src.root}" test.root="${test.root}" build.qa.test="${build.qa.test}" build.qa.test.testdata="${build.qa.test.testdata}" build.qa.test.coveragedata="${build.qa.test.coveragedata}" build.test.classes="${build.test.classes}" build.instrumented.classes="${build.instrumented.classes}" test.workingdir="${test.workingDir}" test.javac.source="${test.javac.source}" test.javac.target="${test.javac.target}" test.targetsuite="${test.targetsuite}" test.vmargs="${test.vmargs}" test.haltonfailure="true">
 			<compile.classpath>
 				<classpath>
-					<path refid="compile.classpath"/>
+					<path refid="compile.classpath" />
 				</classpath>
 			</compile.classpath>
 			<test.compile.classpath>
 				<classpath>
-					<path refid="test.compile.classpath"/>
+					<path refid="test.compile.classpath" />
 				</classpath>
 			</test.compile.classpath>
 			<test.classes-to-instrument>
@@ -197,7 +183,7 @@
 			<include name="info/novatec/inspectit/**/*.java" />
 			<exclude name="info/novatec/inspectit/**/test/**" />
 		</fileset>
-			
+
 		<execute-cpd build.qa.analysis="${build.qa.analysis}" build.qa.analysis.cpd="${build.qa.analysis.cpd}">
 			<cpd.fileset>
 				<fileset refid="cpd.fileset" />
@@ -223,7 +209,7 @@
 		<copy todir="${build.release}/sun1.5-data/agent/config">
 			<fileset dir="${config.root}" includes="**/*.*" />
 		</copy>
-		
+
 		<copy todir="${build.release}/sun1.5-data/agent">
 			<fileset dir="${basedir}" includes="logging-config.xml" />
 		</copy>
@@ -271,4 +257,41 @@
 		<echo message="Wrote version.log to Commons/src" />
 	</target>
 
+	<!-- *************************************************************** -->
+	<!--             P E R F O R M A N C E    T A R G E T S              -->
+	<!-- *************************************************************** -->
+	<target name="perf-tests" depends="clean,build-agent,init-perf-tests">
+		<condition property="args" value="-gc=true">
+			<not>
+				<isset property="args" />
+			</not>
+		</condition>
+
+		<path id="perftest.compile.classpath">
+			<pathelement location="${build.agent.classes}" />
+			<pathelement location="${build.cmr.classes}" />
+			<fileset dir="${commons.build.release}" includes="*.jar" />
+			<!--fileset dir="${commonscs.build.release}" includes="*.jar" /-->
+			<path refid="lib.prod" />
+			<path refid="lib.prod.commons" />
+			<!--path refid="lib.prod.commonscs" /-->
+		</path>
+
+		<property name="perftest.javac.source" value="1.7" />
+		<property name="perftest.javac.target" value="1.7" />
+
+		<execute-perf-tests perftest.root="${perftest.root}" 
+			perftest.javac.source="${perftest.javac.source}" 
+			perftest.javac.target="${perftest.javac.target}" 
+			build.perftest.classes="${build.perftest.classes}" 
+			perftest.command.line.arguments="${args}">
+
+			<perftest.compile.classpath>
+				<classpath>
+					<path refid="perftest.compile.classpath" />
+				</classpath>
+			</perftest.compile.classpath>
+
+		</execute-perf-tests>
+	</target>
 </project>

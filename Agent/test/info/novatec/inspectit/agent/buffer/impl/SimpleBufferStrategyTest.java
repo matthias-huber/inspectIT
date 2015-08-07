@@ -4,7 +4,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import info.novatec.inspectit.communication.MethodSensorData;
+import info.novatec.inspectit.communication.DefaultData;
 
 import java.util.Collections;
 import java.util.List;
@@ -27,12 +27,12 @@ public class SimpleBufferStrategyTest {
 
 	@Test
 	public void addAndRetrieve() {
-		bufferStrategy.addMeasurements(Collections.<MethodSensorData> emptyList());
+		bufferStrategy.addMeasurements(Collections.<DefaultData> emptyList());
 
 		assertThat(bufferStrategy.hasNext(), is(true));
-		List<MethodSensorData> list = bufferStrategy.next();
+		List<DefaultData> list = bufferStrategy.next();
 		assertThat(list, is(notNullValue()));
-		assertThat(list, is(equalTo(Collections.<MethodSensorData> emptyList())));
+		assertThat(list, is(equalTo(Collections.<DefaultData> emptyList())));
 
 		assertThat(bufferStrategy.hasNext(), is(false));
 	}
@@ -54,7 +54,7 @@ public class SimpleBufferStrategyTest {
 
 	@Test(expectedExceptions = { NoSuchElementException.class })
 	public void exceptionAfterDoubleRetrieve() {
-		bufferStrategy.addMeasurements(Collections.<MethodSensorData> emptyList());
+		bufferStrategy.addMeasurements(Collections.<DefaultData> emptyList());
 		bufferStrategy.next();
 		bufferStrategy.next();
 	}

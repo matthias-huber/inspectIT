@@ -32,4 +32,6 @@ public interface IBufferStrategy<E> extends Iterator<List<E>> {
 	 */
 	void init(Map<String, String> settings);
 
+	
+	int size();
 }

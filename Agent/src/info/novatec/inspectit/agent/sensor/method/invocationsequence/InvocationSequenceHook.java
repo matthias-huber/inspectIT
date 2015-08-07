@@ -147,7 +147,7 @@ public class InvocationSequenceHook implements IMethodHook, IConstructorHook, IC
 		if (skip(rsc)) {
 			return;
 		}
-
+		
 		try {
 			long platformId = idManager.getPlatformId();
 			Timestamp timestamp = new Timestamp(System.currentTimeMillis());
@@ -187,7 +187,7 @@ public class InvocationSequenceHook implements IMethodHook, IConstructorHook, IC
 			}
 		} catch (IdNotAvailableException idNotAvailableException) {
 			if (LOG.isDebugEnabled()) {
-				LOG.debug("Could not start invocation sequence because of a (currently) not mapped ID");
+				LOG.debug("Could not start invocation sequence because of a (currently) not mapped ID" + " " +  idNotAvailableException.getMessage());
 			}
 		}
 	}

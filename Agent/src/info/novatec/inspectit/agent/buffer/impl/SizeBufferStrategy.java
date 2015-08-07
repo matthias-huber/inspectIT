@@ -115,4 +115,8 @@ public class SizeBufferStrategy extends AbstractBufferStrategy<MethodSensorData>
 		}
 	}
 
+	public int size() {
+		return this.stack.size();
+	}
+
 }

@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
  * 
  */
 @Component
-public class Timer {
+public class Timer implements ITimer {
 
 	/**
 	 * Returns the current time in milliseconds.

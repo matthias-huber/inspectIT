@@ -113,16 +113,19 @@ public class TimerHook implements IMethodHook, IConstructorHook {
 		this.threadMXBean = threadMXBean;
 
 		try {
-			// if it is even supported by this JVM
-			supported = threadMXBean.isThreadCpuTimeSupported();
-			if (supported) {
-				// check if its enabled
-				enabled = threadMXBean.isThreadCpuTimeEnabled();
-				if (!enabled) {
-					// try to enable it
-					threadMXBean.setThreadCpuTimeEnabled(true);
-					// check again now if it is enabled now
+			// MHU: added for JMH tests. Otherwise NPE is raised
+			if (null != threadMXBean) {
+				// if it is even supported by this JVM
+				supported = threadMXBean.isThreadCpuTimeSupported();
+				if (supported) {
+					// check if its enabled
 					enabled = threadMXBean.isThreadCpuTimeEnabled();
+					if (!enabled) {
+						// try to enable it
+						threadMXBean.setThreadCpuTimeEnabled(true);
+						// check again now if it is enabled now
+						enabled = threadMXBean.isThreadCpuTimeEnabled();
+					}
 				}
 			}
 		} catch (RuntimeException e) {

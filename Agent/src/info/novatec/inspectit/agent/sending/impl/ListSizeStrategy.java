@@ -45,6 +45,7 @@ public class ListSizeStrategy extends AbstractSendingStrategy implements ListLis
 	 */
 	public void contentChanged(List<List<DefaultData>> list) {
 		if (list.size() > size) {
+			System.out.println(">>>>>> ContentChanged -> size = " + list.size()); 
 			sendNow();
 		}
 	}
