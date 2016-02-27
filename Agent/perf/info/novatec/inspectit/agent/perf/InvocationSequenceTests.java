@@ -12,12 +12,16 @@ import info.novatec.inspectit.agent.core.impl.IdManager;
 import info.novatec.inspectit.agent.sending.ISendingStrategy;
 import info.novatec.inspectit.agent.sending.impl.TimeStrategy;
 import info.novatec.inspectit.agent.sensor.method.invocationsequence.InvocationSequenceHook;
+import info.novatec.inspectit.communication.DefaultData;
+import info.novatec.inspectit.communication.data.InvocationSequenceData;
 import info.novatec.inspectit.util.Timer;
 import info.novatec.inspectit.version.VersionService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import org.openjdk.jmh.annotations.Benchmark;
@@ -43,6 +47,9 @@ import org.openjdk.jmh.infra.ThreadParams;
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @Fork(3)
 public class InvocationSequenceTests {
+
+	@Param({ "0" })
+	private int initialSize;
 
 	@Param({ "0" })
 	public int tokens;
@@ -78,6 +85,23 @@ public class InvocationSequenceTests {
 		List<ISendingStrategy> sendingStrategies = new ArrayList<ISendingStrategy>();
 		sendingStrategies.add(new TimeStrategy());
 		coreService = new CoreService(configurationStorage, new NoConnection(), new SimpleBufferStrategy(), sendingStrategies, idManager);
+
+		// set the pre-initialized map
+		Map<String, DefaultData> sensorDataObjects = new ConcurrentHashMap<String, DefaultData>();
+
+		while (sensorDataObjects.size() != initialSize) {
+			StringBuilder sb = new StringBuilder();
+			sb.append(System.nanoTime() / 1000000.0d);
+			sb.append('.');
+			sb.append(methodId);
+			sb.append('.');
+			sb.append(sensorTypeId);
+			sensorDataObjects.put(sb.toString(), new InvocationSequenceData());
+		}
+
+		// System.out.println("Size: " + initialSize);
+
+		coreService.setSensorDataObjects(sensorDataObjects);
 
 		coreServiceNoPut = new CoreServiceNoPut(configurationStorage, new NoConnection(), new SimpleBufferStrategy(), sendingStrategies, idManager);
 

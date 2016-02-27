@@ -17,6 +17,7 @@ import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
@@ -41,27 +42,46 @@ import org.openjdk.jmh.infra.ThreadParams;
 @Fork(3)
 public class ConcurrentHashMapTests {
 
+	@Param({ "0" })
+	private int initialSize;
+
+	@Param({ "0" })
+	public int tokens;
+
 	private Map<String, DefaultData> sensorDataObjects;
 
 	private long methodIdent;
 	private final long sensorTypeIdent = 1L;
-	private final DefaultData defaultData = new InvocationSequenceData();
 
 	@Setup(Level.Iteration)
 	public void init(ThreadParams threadParams) {
 		sensorDataObjects = new ConcurrentHashMap<String, DefaultData>();
 		methodIdent = threadParams.getThreadIndex();
+
+		while (sensorDataObjects.size() != initialSize) {
+			StringBuilder sb = new StringBuilder();
+			sb.append(System.nanoTime() / 1000000.0d);
+			sb.append('.');
+			sb.append(methodIdent);
+			sb.append('.');
+			sb.append(sensorTypeIdent);
+			sensorDataObjects.put(sb.toString(), new InvocationSequenceData());
+		}
+
+		// System.out.println("Size: " + initialSize);
 	}
 
 	@Benchmark
 	public void put() {
+		// Blackhole.consumeCPU(tokens);
+
 		StringBuffer buffer = new StringBuffer();
 		buffer.append(System.nanoTime() / 1000000.0d);
 		buffer.append('.');
 		buffer.append(methodIdent);
 		buffer.append('.');
 		buffer.append(sensorTypeIdent);
-		sensorDataObjects.put(buffer.toString(), defaultData);
+		sensorDataObjects.put(buffer.toString(), new InvocationSequenceData());
 	}
 
 	@TearDown(Level.Iteration)

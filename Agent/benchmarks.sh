@@ -1,3 +1,5 @@
+#!/bin/bash
+
 #echo "Scale down clock-speed. TODO: adjust it for each hardware"
 #sudo cpufreq-set -c 0 -f 2200Mhz
 #sudo cpufreq-set -c 1 -f 2200Mhz
@@ -10,30 +12,58 @@
 #sudo wrmsr -p2 0x1a0 0x4000850089
 #sudo wrmsr -p3 0x1a0 0x4000850089
 
-ant perf-tests -Dargs='-gc=true -rff ./jmh_tests/thread1_batch_50000.csv -t 1 -bs 50000'
-ant perf-tests -Dargs='-gc=true -rff ./jmh_tests/thread2_batch_50000.csv -t 2 -bs 50000'
-#ant perf-tests -Dargs='-gc=true -rff ./jmh_tests/thread3_batch_50000.csv -t 3 -bs 50000'
-#ant perf-tests -Dargs='-gc=true -rff ./jmh_tests/thread4_batch_50000.csv -t 4 -bs 50000'
+#VARIABLES
+# i in for loop is always batchSize
 
-ant perf-tests -Dargs='-gc=true -rff ./jmh_tests/thread1_batch_75000.csv -t 1 -bs 75000'
-ant perf-tests -Dargs='-gc=true -rff ./jmh_tests/thread2_batch_75000.csv -t 2 -bs 75000'
-#ant perf-tests -Dargs='-gc=true -rff ./jmh_tests/thread3_batch_50000.csv -t 3 -bs 75000'
-#ant perf-tests -Dargs='-gc=true -rff ./jmh_tests/thread4_batch_50000.csv -t 4 -bs 75000'
+warmIter=20
+iter=20
+forks=10
 
-ant perf-tests -Dargs='-gc=true -rff ./jmh_tests/thread1_batch_100000.csv -t 1 -bs 100000'
-ant perf-tests -Dargs='-gc=true -rff ./jmh_tests/thread2_batch_100000.csv -t 2 -bs 100000'
-#ant perf-tests -Dargs='-gc=true -rff ./jmh_tests/thread3_batch_100000.csv -t 3 -bs 100000'
-#ant perf-tests -Dargs='-gc=true -rff ./jmh_tests/thread4_batch_100000.csv -t 4 -bs 100000'
+## do it for 1 and 2 threads
+for t in 1 2
+do
+	#### TESTS FOR NON-STEADY-STATE
+	
+	
+	for i in {10000..300000..10000}
+	do
+		ant perf-tests -Dargs="-gc=true -rf json -rff ./jmh_tests/thread${t}_batch_${i}.json -t ${t} -f ${forks} -wi ${warmIter} -i ${iter} -bs ${i}"
+	done
+	
+	for i in {350000..500000..50000}
+	do
+		ant perf-tests -Dargs="-gc=true -rf json -rff ./jmh_tests/thread${t}_batch_${i}.json -t ${t} -f ${forks} -wi ${warmIter} -i ${iter} -bs ${i}"
+	done
+	
+	for i in {600000..1000000..100000}
+	do
+		ant perf-tests -Dargs="-gc=true -rf json -rff ./jmh_tests/thread${t}_batch_${i}.json -t ${t} -f ${forks} -wi ${warmIter} -i ${iter} -bs ${i}"
+	done
+	
+	
+	##### TESTS FOR MEASURING SINGLE EXECUTIONS
+	for i in {50..1000..50}
+	do
+		# initialSize= 500
+		ant perf-tests -Dargs="-gc=true -rf json -rff ./jmh_tests/thread${t}_batch_${i}_initial_500.json -t ${t} -f ${forks} -wi ${warmIter} -i ${iter} -bs ${i} -p initialSize=500"
+	done
+	
+	for i in {100..2000..100}
+	do
+		# initialSize= 5000
+		ant perf-tests -Dargs="-gc=true -rf json -rff ./jmh_tests/thread${t}_batch_${i}_initial_5000.json -t ${t} -f ${forks} -wi ${warmIter} -i ${iter} -bs ${i} -p initialSize=5000"
+	done
+	
+	for i in {500..1000..50}
+	do
+		# initialSize= 10000
+		ant perf-tests -Dargs="-gc=true -rf json -rff ./jmh_tests/thread${t}_batch_${i}_initial_10000.json -t ${t} -f ${forks} -wi ${warmIter} -i ${iter} -bs ${i} -p initialSize=10000"
+	done
+done
 
-ant perf-tests -Dargs='-gc=true -rff ./jmh_tests/thread1_batch_125000.csv -t 1 -bs 125000'
-ant perf-tests -Dargs='-gc=true -rff ./jmh_tests/thread2_batch_125000.csv -t 2 -bs 125000'
-#ant perf-tests -Dargs='-gc=true -rff ./jmh_tests/thread3_batch_100000.csv -t 3 -bs 125000'
-#ant perf-tests -Dargs='-gc=true -rff ./jmh_tests/thread4_batch_100000.csv -t 4 -bs 125000'
+## future tests
+# ant perf-tests -Dargs=".*Concurrent.* -p initialSize=1000,1000000"
 
-ant perf-tests -Dargs='-gc=true -rff ./jmh_tests/thread1_batch_150000.csv -t 1 -bs 150000'
-ant perf-tests -Dargs='-gc=true -rff ./jmh_tests/thread2_batch_150000.csv -t 2 -bs 150000'
-#ant perf-tests -Dargs='-gc=true -rff ./jmh_tests/thread3_batch_150000.csv -t 3 -bs 150000'
-#ant perf-tests -Dargs='-gc=true -rff ./jmh_tests/thread4_batch_150000.csv -t 4 -bs 150000'
 
 #echo "reset Clockspeed"
 

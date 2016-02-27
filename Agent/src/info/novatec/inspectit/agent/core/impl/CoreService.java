@@ -76,9 +76,29 @@ public class CoreService implements ICoreService, InitializingBean, DisposableBe
 	private Map<String, DefaultData> sensorDataObjects = new ConcurrentHashMap<String, DefaultData>();
 
 	/**
+	 * Sets {@link #sensorDataObjects}.
+	 *
+	 * @param sensorDataObjects
+	 *            New value for {@link #sensorDataObjects}
+	 */
+	public void setSensorDataObjects(Map<String, DefaultData> sensorDataObjects) {
+		this.sensorDataObjects = sensorDataObjects;
+	}
+
+	/**
 	 * Contains object storage instances which will be initialized when sending.
 	 */
 	private Map<String, IObjectStorage> objectStorages = new ConcurrentHashMap<String, IObjectStorage>();
+
+	/**
+	 * Sets {@link #objectStorages}.
+	 * 
+	 * @param objectStorages
+	 *            New value for {@link #objectStorages}
+	 */
+	public void setObjectStorages(Map<String, IObjectStorage> objectStorages) {
+		this.objectStorages = objectStorages;
+	}
 
 	/**
 	 * Used as second hash table for the measurements when processed before sending.
@@ -726,11 +746,6 @@ public class CoreService implements ICoreService, InitializingBean, DisposableBe
 
 	public void printSensorDataObjects() {
 		System.out.println(sensorDataObjects.size());
-		System.out.println(counterPuts);
-	}
-
-	private synchronized void incrementCounter() {
-		counterPuts++;
 	}
 
 }
