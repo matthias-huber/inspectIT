@@ -22,29 +22,18 @@ forks=10
 ## do it for 1 and 2 threads
 for t in 1 2
 do
-	#### TESTS FOR NON-STEADY-STATE
-	
-	
-	for i in {10000..300000..10000}
-	do
-		ant perf-tests -Dargs="-gc=true -rf json -rff ./jmh_tests/thread${t}_batch_${i}.json -t ${t} -f ${forks} -wi ${warmIter} -i ${iter} -bs ${i}"
-	done
-	
-	for i in {350000..500000..50000}
-	do
-		ant perf-tests -Dargs="-gc=true -rf json -rff ./jmh_tests/thread${t}_batch_${i}.json -t ${t} -f ${forks} -wi ${warmIter} -i ${iter} -bs ${i}"
-	done
-	
-	for i in {600000..1000000..100000}
+
+	## really small tests
+	for i in {1..150..1}
 	do
 		ant perf-tests -Dargs="-gc=true -rf json -rff ./jmh_tests/thread${t}_batch_${i}.json -t ${t} -f ${forks} -wi ${warmIter} -i ${iter} -bs ${i}"
 	done
 	
 	
 	##### TESTS FOR MEASURING SINGLE EXECUTIONS
-	for i in {50..1000..50}
+	for i in {50..1500..50}
 	do
-		initSize=500
+		initSize=200
 		ant perf-tests -Dargs="-gc=true -rf json -rff ./jmh_tests/thread${t}_batch_${i}_initial_${initSize}.json -t ${t} -f ${forks} -wi ${warmIter} -i ${iter} -bs ${i} -p initialSize=${initSize}"
 	done
 	
