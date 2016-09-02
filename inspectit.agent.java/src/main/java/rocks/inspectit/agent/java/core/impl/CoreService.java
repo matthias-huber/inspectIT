@@ -1,10 +1,9 @@
 package rocks.inspectit.agent.java.core.impl;
 
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -17,24 +16,21 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Component;
 
-import rocks.inspectit.agent.java.buffer.IBufferStrategy;
+import com.lmax.disruptor.BlockingWaitStrategy;
+import com.lmax.disruptor.InsufficientCapacityException;
+import com.lmax.disruptor.RingBuffer;
+import com.lmax.disruptor.TimeoutException;
+import com.lmax.disruptor.dsl.Disruptor;
+import com.lmax.disruptor.dsl.ProducerType;
+
 import rocks.inspectit.agent.java.connection.IConnection;
-import rocks.inspectit.agent.java.connection.ServerUnavailableException;
 import rocks.inspectit.agent.java.core.ICoreService;
-import rocks.inspectit.agent.java.core.IObjectStorage;
 import rocks.inspectit.agent.java.core.IPlatformManager;
-import rocks.inspectit.agent.java.core.ListListener;
-import rocks.inspectit.agent.java.sending.ISendingStrategy;
 import rocks.inspectit.agent.java.sensor.jmx.IJmxSensor;
 import rocks.inspectit.agent.java.sensor.platform.IPlatformSensor;
 import rocks.inspectit.shared.all.communication.DefaultData;
-import rocks.inspectit.shared.all.communication.ExceptionEvent;
-import rocks.inspectit.shared.all.communication.MethodSensorData;
 import rocks.inspectit.shared.all.communication.SystemSensorData;
-import rocks.inspectit.shared.all.communication.data.ExceptionSensorData;
-import rocks.inspectit.shared.all.communication.data.JmxSensorValueData;
 import rocks.inspectit.shared.all.spring.logger.Log;
-import rocks.inspectit.shared.all.util.ExecutorServiceUtils;
 
 /**
  * Default implementation of the {@link ICoreService} interface.
@@ -67,17 +63,17 @@ public class CoreService implements ICoreService, InitializingBean, DisposableBe
 	@Autowired
 	private IPlatformManager platformManager;
 
-	/**
-	 * The available and registered sending strategies.
-	 */
-	@Autowired
-	private final List<ISendingStrategy> sendingStrategies = new ArrayList<ISendingStrategy>();
+	// /**
+	// * The available and registered sending strategies.
+	// */
+	// @Autowired
+	// private final List<ISendingStrategy> sendingStrategies = new ArrayList<ISendingStrategy>();
 
-	/**
-	 * The selected buffer strategy to store the list of value objects.
-	 */
-	@Autowired
-	private IBufferStrategy<DefaultData> bufferStrategy;
+	// /**
+	// * The selected buffer strategy to store the list of value objects.
+	// */
+	// @Autowired
+	// private IBufferStrategy<DefaultData> bufferStrategy;
 
 	/**
 	 * All platform sensors.
@@ -98,35 +94,39 @@ public class CoreService implements ICoreService, InitializingBean, DisposableBe
 	@Qualifier("coreServiceExecutorService")
 	private ScheduledExecutorService executorService;
 
-	/**
-	 * Already used data objects which can be used directly on the CMR to persist.
-	 */
-	private Map<String, DefaultData> sensorDataObjects = new ConcurrentHashMap<String, DefaultData>();
+	// /**
+	// * Already used data objects which can be used directly on the CMR to persist.
+	// */
+	// private Map<String, DefaultData> sensorDataObjects = new ConcurrentHashMap<String,
+	// DefaultData>();
 
-	/**
-	 * Contains object storage instances which will be initialized when sending.
-	 */
-	private Map<String, IObjectStorage> objectStorages = new ConcurrentHashMap<String, IObjectStorage>();
+	// /**
+	// * Contains object storage instances which will be initialized when sending.
+	// */
+	// private Map<String, IObjectStorage> objectStorages = new ConcurrentHashMap<String,
+	// IObjectStorage>();
 
-	/**
-	 * Used as second hash table for the measurements when processed before sending.
-	 */
-	private Map<String, DefaultData> measurementsProcessing = new ConcurrentHashMap<String, DefaultData>();
+	// /**
+	// * Used as second hash table for the measurements when processed before sending.
+	// */
+	// private Map<String, DefaultData> measurementsProcessing = new ConcurrentHashMap<String,
+	// DefaultData>();
 
-	/**
-	 * Used as second hash table for the object storages when processed before sending.
-	 */
-	private Map<String, IObjectStorage> objectStoragesProcessing = new ConcurrentHashMap<String, IObjectStorage>();
+	// /**
+	// * Used as second hash table for the object storages when processed before sending.
+	// */
+	// private Map<String, IObjectStorage> objectStoragesProcessing = new ConcurrentHashMap<String,
+	// IObjectStorage>();
 
-	/**
-	 * Temporary Map to switch the references of the active hash table with the processed one.
-	 */
-	private Map<String, ?> temp;
+	// /**
+	// * Temporary Map to switch the references of the active hash table with the processed one.
+	// */
+	// private Map<String, ?> temp;
 
-	/**
-	 * The registered list listeners.
-	 */
-	private final List<ListListener<?>> listListeners = new ArrayList<ListListener<?>>();
+	// /**
+	// * The registered list listeners.
+	// */
+	// private final List<ListListener<?>> listListeners = new ArrayList<ListListener<?>>();
 
 	/**
 	 * The default refresh time.
@@ -144,16 +144,16 @@ public class CoreService implements ICoreService, InitializingBean, DisposableBe
 	 */
 	private volatile SensorRefresher sensorRefresher;
 
-	/**
-	 * The preparing thread used to execute the preparation of the measurement in a separate
-	 * process.
-	 */
-	private volatile PreparingThread preparingThread;
+	// /**
+	// * The preparing thread used to execute the preparation of the measurement in a separate
+	// * process.
+	// */
+	// private volatile PreparingThread preparingThread;
 
-	/**
-	 * The sending thread used to execute the sending of the measurement in a separate process.
-	 */
-	private volatile SendingThread sendingThread;
+	// /**
+	// * The sending thread used to execute the sending of the measurement in a separate process.
+	// */
+	// private volatile SendingThread sendingThread;
 
 	/**
 	 * Defines if there was an exception before while trying to send the data. Used to throttle the
@@ -161,20 +161,30 @@ public class CoreService implements ICoreService, InitializingBean, DisposableBe
 	 */
 	private boolean sendingExceptionNotice = false;
 
+	// TODO: confluence:
+	// https://confluence.novatec-gmbh.de/display/~mwa/Aggregation+of+DefaultData%28s%29+on+the+agent
+
+	private Disruptor<DefaultDataWrapper> disruptor;
+
+	private RingBuffer<DefaultDataWrapper> ringBuffer;
+
 	/**
 	 * {@inheritDoc}
 	 */
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Override
 	public void start() {
-		for (ISendingStrategy strategy : sendingStrategies) {
-			strategy.start(this);
-		}
+		// for (ISendingStrategy strategy : sendingStrategies) {
+		// strategy.start(this);
+		// }
 
-		preparingThread = new PreparingThread();
-		preparingThread.start();
+		// preparingThread = new PreparingThread();
+		// preparingThread.start();
 
-		sendingThread = new SendingThread();
-		sendingThread.start();
+		// sendingThread = new SendingThread();
+		// sendingThread.start();
+
+		startDisruptor();
 
 		sensorRefresher = new SensorRefresher();
 		sensorRefresher.start();
@@ -182,22 +192,43 @@ public class CoreService implements ICoreService, InitializingBean, DisposableBe
 		Runtime.getRuntime().addShutdownHook(new ShutdownHookSender());
 	}
 
+	private void startDisruptor() {
+		// Specify the size of the ring buffer, must be power of 2.
+		int bufferSize = 1024;
+
+		// Construct the Disruptor
+		disruptor = new Disruptor<DefaultDataWrapper>(new DefaultDataFactory(), bufferSize, Executors.defaultThreadFactory(), ProducerType.MULTI, new BlockingWaitStrategy());
+
+		// Connect the handler
+		disruptor.handleEventsWith(new DefaultDataHandler(connection));
+
+		// System.out.println("Starting the disruptor...");
+
+		// Start the Disruptor, starts all threads running
+		disruptor.start();
+
+		// System.out.println("... ended.");
+
+		// Get the ring buffer from the Disruptor to be used for publishing.
+		ringBuffer = disruptor.getRingBuffer();
+	}
+
 	/**
 	 * {@inheritDoc}
 	 */
 	@Override
 	public void stop() {
-		for (ISendingStrategy strategy : sendingStrategies) {
-			strategy.stop();
-		}
+		// for (ISendingStrategy strategy : sendingStrategies) {
+		// strategy.stop();
+		// }
 
-		synchronized (preparingThread) {
-			preparingThread.interrupt();
-		}
+		// synchronized (preparingThread) {
+		// preparingThread.interrupt();
+		// }
 
-		synchronized (sendingThread) {
-			sendingThread.interrupt();
-		}
+		// synchronized (sendingThread) {
+		// sendingThread.interrupt();
+		// }
 
 		Thread temp = sensorRefresher;
 		sensorRefresher = null; // NOPMD
@@ -205,179 +236,224 @@ public class CoreService implements ICoreService, InitializingBean, DisposableBe
 			temp.interrupt();
 		}
 
-		ExecutorServiceUtils.shutdownExecutor(executorService, 5L, TimeUnit.SECONDS);
+		shutDownExecutorService(executorService);
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
-	@Override
-	public void sendData() {
-		// notify the sending thread. if it is currently sending something,
-		// nothing should happen
-		synchronized (preparingThread) {
-			preparingThread.notifyAll();
-		}
+	private void stopDisruptor() {
+		// System.out.println("Shutdown disruptor... ");
+		disruptor.shutdown();
+		// System.out.println("... ended!");
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
-	@Override
-	public void addJmxSensorValueData(long sensorTypeIdent, String objectName, String attributeName, JmxSensorValueData jmxSensorValueData) {
-		StringBuilder builder = new StringBuilder();
-		builder.append(sensorTypeIdent);
-		builder.append('.');
-		builder.append(objectName);
-		builder.append('.');
-		builder.append(attributeName);
-		builder.append('.');
-		// Added timestamp to be able to send multiple objects to cmr.
-		builder.append(jmxSensorValueData.getTimeStamp().getTime());
-		sensorDataObjects.put(builder.toString(), jmxSensorValueData);
-		notifyListListeners();
-	}
+	// /**
+	// * {@inheritDoc}
+	// */
+	// public void sendData() {
+	// notify the sending thread. if it is currently sending something,
+	// nothing should happen
+	// synchronized (preparingThread) {
+	// preparingThread.notifyAll();
+	// }
+	// }
+
+	// /**
+	// * {@inheritDoc}
+	// */
+	// public void addJmxSensorValueData(long sensorTypeIdent, String objectName, String
+	// attributeName, JmxSensorValueData jmxSensorValueData) {
+	// StringBuilder builder = new StringBuilder();
+	// builder.append(sensorTypeIdent);
+	// builder.append('.');
+	// builder.append(objectName);
+	// builder.append('.');
+	// builder.append(attributeName);
+	// builder.append('.');
+	// // Added timestamp to be able to send multiple objects to cmr.
+	// builder.append(jmxSensorValueData.getTimeStamp().getTime());
+	// sensorDataObjects.put(builder.toString(), jmxSensorValueData);
+	// notifyListListeners();
+	// }
+
+	// /**
+	// * {@inheritDoc}
+	// */
+	// public void addMethodSensorData(long sensorTypeIdent, long methodIdent, String prefix,
+	// MethodSensorData methodSensorData) {
+	// StringBuilder builder = new StringBuilder();
+	// if (null != prefix) {
+	// builder.append(prefix);
+	// builder.append('.');
+	// }
+	// builder.append(methodIdent);
+	// builder.append('.');
+	// builder.append(sensorTypeIdent);
+	// sensorDataObjects.put(builder.toString(), methodSensorData);
+	// notifyListListeners();
+	// }
+
+	// /**
+	// * {@inheritDoc}
+	// */
+	// public MethodSensorData getMethodSensorData(long sensorTypeIdent, long methodIdent, String
+	// prefix) {
+	// StringBuilder builder = new StringBuilder();
+	// if (null != prefix) {
+	// builder.append(prefix);
+	// builder.append('.');
+	// }
+	// builder.append(methodIdent);
+	// builder.append('.');
+	// builder.append(sensorTypeIdent);
+	// return (MethodSensorData) sensorDataObjects.get(builder.toString());
+	// }
+
+	// /**
+	// * {@inheritDoc}
+	// */
+	// public void addPlatformSensorData(long sensorTypeIdent, SystemSensorData systemSensorData) {
+	// sensorDataObjects.put(Long.toString(sensorTypeIdent), systemSensorData);
+	// notifyListListeners();
+	// }
+
+	// /**
+	// * {@inheritDoc}
+	// */
+	// public void addExceptionSensorData(long sensorTypeIdent, long throwableIdentityHashCode,
+	// ExceptionSensorData exceptionSensorData) {
+	// StringBuilder builder = new StringBuilder();
+	// builder.append(sensorTypeIdent);
+	// builder.append("::");
+	// builder.append(throwableIdentityHashCode);
+	// String key = builder.toString();
+	//
+	// // we always only save the first data object, because this object contains the nested
+	// // objects to create the whole exception tree
+	// if (exceptionSensorData.getExceptionEvent().equals(ExceptionEvent.CREATED)) {
+	// // if a data object with the same hash code was already created, then it has to be For
+	// // us only the last-most data object is relevant
+	// sensorDataObjects.put(key, exceptionSensorData);
+	// notifyListListeners();
+	// }
+	// }
+
+	// /**
+	// * {@inheritDoc}
+	// */
+	// public ExceptionSensorData getExceptionSensorData(long sensorTypeIdent, long
+	// throwableIdentityHashCode) {
+	// StringBuilder builder = new StringBuilder();
+	// builder.append(sensorTypeIdent);
+	// builder.append("::");
+	// builder.append(throwableIdentityHashCode);
+	//
+	// return (ExceptionSensorData) sensorDataObjects.get(builder.toString());
+	// }
+
+	// /**
+	// * {@inheritDoc}
+	// */
+	// public void addObjectStorage(long sensorTypeIdent, long methodIdent, String prefix,
+	// IObjectStorage objectStorage) {
+	// StringBuilder builder = new StringBuilder();
+	// if (null != prefix) {
+	// builder.append(prefix);
+	// builder.append('.');
+	// }
+	// builder.append(methodIdent);
+	// builder.append('.');
+	// builder.append(sensorTypeIdent);
+	// objectStorages.put(builder.toString(), objectStorage);
+	// notifyListListeners();
+	// }
+
+	// /**
+	// * {@inheritDoc}
+	// */
+	// public IObjectStorage getObjectStorage(long sensorTypeIdent, long methodIdent, String prefix)
+	// {
+	// StringBuilder builder = new StringBuilder();
+	// if (null != prefix) {
+	// builder.append(prefix);
+	// builder.append('.');
+	// }
+	// builder.append(methodIdent);
+	// builder.append('.');
+	// builder.append(sensorTypeIdent);
+	// return objectStorages.get(builder.toString());
+	// }
 
 	/**
-	 * {@inheritDoc}
+	 * Correctly shuts down the executor service.
+	 *
+	 * @param executorService
+	 *            Executor service to shut down.
 	 */
-	@Override
-	public void addMethodSensorData(long sensorTypeIdent, long methodIdent, String prefix, MethodSensorData methodSensorData) {
-		StringBuilder builder = new StringBuilder();
-		if (null != prefix) {
-			builder.append(prefix);
-			builder.append('.');
-		}
-		builder.append(methodIdent);
-		builder.append('.');
-		builder.append(sensorTypeIdent);
-		sensorDataObjects.put(builder.toString(), methodSensorData);
-		notifyListListeners();
-	}
-
-	/**
-	 * {@inheritDoc}
-	 */
-	@Override
-	public MethodSensorData getMethodSensorData(long sensorTypeIdent, long methodIdent, String prefix) {
-		StringBuilder builder = new StringBuilder();
-		if (null != prefix) {
-			builder.append(prefix);
-			builder.append('.');
-		}
-		builder.append(methodIdent);
-		builder.append('.');
-		builder.append(sensorTypeIdent);
-		return (MethodSensorData) sensorDataObjects.get(builder.toString());
-	}
-
-	/**
-	 * {@inheritDoc}
-	 */
-	@Override
-	public void addPlatformSensorData(long sensorTypeIdent, SystemSensorData systemSensorData) {
-		sensorDataObjects.put(Long.toString(sensorTypeIdent), systemSensorData);
-		notifyListListeners();
-	}
-
-	/**
-	 * {@inheritDoc}
-	 */
-	@Override
-	public void addExceptionSensorData(long sensorTypeIdent, long throwableIdentityHashCode, ExceptionSensorData exceptionSensorData) {
-		StringBuilder builder = new StringBuilder();
-		builder.append(sensorTypeIdent);
-		builder.append("::");
-		builder.append(throwableIdentityHashCode);
-		String key = builder.toString();
-
-		// we always only save the first data object, because this object contains the nested
-		// objects to create the whole exception tree
-		if (exceptionSensorData.getExceptionEvent().equals(ExceptionEvent.CREATED)) {
-			// if a data object with the same hash code was already created, then it has to be For
-			// us only the last-most data object is relevant
-			sensorDataObjects.put(key, exceptionSensorData);
-			notifyListListeners();
-		}
-	}
-
-	/**
-	 * {@inheritDoc}
-	 */
-	@Override
-	public ExceptionSensorData getExceptionSensorData(long sensorTypeIdent, long throwableIdentityHashCode) {
-		StringBuilder builder = new StringBuilder();
-		builder.append(sensorTypeIdent);
-		builder.append("::");
-		builder.append(throwableIdentityHashCode);
-
-		return (ExceptionSensorData) sensorDataObjects.get(builder.toString());
-	}
-
-	/**
-	 * {@inheritDoc}
-	 */
-	@Override
-	public void addObjectStorage(long sensorTypeIdent, long methodIdent, String prefix, IObjectStorage objectStorage) {
-		StringBuilder builder = new StringBuilder();
-		if (null != prefix) {
-			builder.append(prefix);
-			builder.append('.');
-		}
-		builder.append(methodIdent);
-		builder.append('.');
-		builder.append(sensorTypeIdent);
-		objectStorages.put(builder.toString(), objectStorage);
-		notifyListListeners();
-	}
-
-	/**
-	 * {@inheritDoc}
-	 */
-	@Override
-	public IObjectStorage getObjectStorage(long sensorTypeIdent, long methodIdent, String prefix) {
-		StringBuilder builder = new StringBuilder();
-		if (null != prefix) {
-			builder.append(prefix);
-			builder.append('.');
-		}
-		builder.append(methodIdent);
-		builder.append('.');
-		builder.append(sensorTypeIdent);
-		return objectStorages.get(builder.toString());
-	}
-
-	/**
-	 * {@inheritDoc}
-	 */
-	@Override
-	public void addListListener(ListListener<?> listener) {
-		if (!listListeners.contains(listener)) {
-			listListeners.add(listener);
-		}
-	}
-
-	/**
-	 * {@inheritDoc}
-	 */
-	@Override
-	public void removeListListener(ListListener<?> listener) {
-		listListeners.remove(listener);
-	}
-
-	/**
-	 * Notify all registered listeners that a change occurred in the lists.
-	 */
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private void notifyListListeners() {
-		if (!listListeners.isEmpty()) {
-			List temp = new ArrayList(sensorDataObjects.values());
-			temp.addAll(objectStorages.values());
-			for (ListListener<?> listListener : listListeners) {
-				listListener.contentChanged(temp);
+	private void shutDownExecutorService(ExecutorService executorService) {
+		// shutdown core service
+		executorService.shutdown();
+		try {
+			// Wait a while for existing tasks to terminate
+			if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
+				// Cancel currently executing tasks
+				executorService.shutdownNow();
+				// Wait a while for tasks to respond to being canceled
+				if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
+					log.error("Executor service for the inspectIT Core service did not terminate.");
+				}
 			}
+		} catch (InterruptedException ie) {
+			// (Re-)Cancel if current thread also interrupted
+			executorService.shutdownNow();
+			// Preserve interrupt status
+			Thread.currentThread().interrupt();
 		}
 	}
+
+	// TODO
+	private void shutDownDisruptor() {
+		// try {
+		// // TODO: define a meaningful value
+		// disruptor.shutdown(0, TimeUnit.NANOSECONDS);
+		// // if shutdown is successful:
+		// // 1. exception is not thrown (obviously)
+		// // Disruptor.halt() is called automatically (less obvious)
+		// } catch (TimeoutException e) {
+		// disruptor.halt();
+		// }
+		// disruptor.
+		// executorService.shutdown();
+		// executorService.awaitTermination(0, TimeUnit.NANOSECONDS);
+	}
+
+	// /**
+	// * {@inheritDoc}
+	// */
+	// public void addListListener(ListListener<?> listener) {
+	// if (!listListeners.contains(listener)) {
+	// listListeners.add(listener);
+	// }
+	// }
+
+	// /**
+	// * {@inheritDoc}
+	// */
+	// public void removeListListener(ListListener<?> listener) {
+	// listListeners.remove(listener);
+	// }
+
+	// /**
+	// * Notify all registered listeners that a change occurred in the lists.
+	// */
+	// @SuppressWarnings({ "unchecked", "rawtypes" })
+	// private void notifyListListeners() {
+	// if (!listListeners.isEmpty()) {
+	// List temp = new ArrayList(sensorDataObjects.values());
+	// temp.addAll(objectStorages.values());
+	// for (ListListener<?> listListener : listListeners) {
+	// listListener.contentChanged(temp);
+	// }
+	// }
+	// }
 
 	/**
 	 * The SensorRefresher is a {@link Thread} which waits the specified sensorRefreshTime and then
@@ -455,7 +531,7 @@ public class CoreService implements ICoreService, InitializingBean, DisposableBe
 							SystemSensorData systemSensorData = platformSensor.get();
 
 							if (null != systemSensorData) {
-								CoreService.this.addPlatformSensorData(systemSensorData.getSensorTypeIdent(), systemSensorData);
+								CoreService.this.addDefaultData(systemSensorData);
 							}
 						}
 
@@ -492,88 +568,91 @@ public class CoreService implements ICoreService, InitializingBean, DisposableBe
 		this.sensorRefreshTime = sensorRefreshTime;
 	}
 
-	/**
-	 * Prepares collected data for sending.
-	 *
-	 * Get all the value objects from the object storages and generate a list containing all the
-	 * value objects.
-	 *
-	 * <b> WARNING: This code is supposed to be run single-threaded! We ensure single-threaded
-	 * invocation by only calling this method within the single <code>PreparingThread</code>. During
-	 * the JVM shutdown (in the shutdownhook), it is also ensured that this code is run
-	 * singlethreaded. </b>
-	 *
-	 * @return <code>true</code> if new data were prepared, else <code>false</code>
-	 */
-	@SuppressWarnings("unchecked")
-	private boolean prepareData() {
-		// check if measurements are added in the last interval, if not nothing needs to be sent.
-		if (sensorDataObjects.isEmpty() && objectStorages.isEmpty()) {
-			return false;
-		}
+	// /**
+	// * Prepares collected data for sending.
+	// *
+	// * Get all the value objects from the object storages and generate a list containing all the
+	// * value objects.
+	// *
+	// * <b> WARNING: This code is supposed to be run single-threaded! We ensure single-threaded
+	// * invocation by only calling this method within the single <code>PreparingThread</code>.
+	// During
+	// * the JVM shutdown (in the shutdownhook), it is also ensured that this code is run
+	// * singlethreaded. </b>
+	// *
+	// * @return <code>true</code> if new data were prepared, else <code>false</code>
+	// */
+	// @SuppressWarnings("unchecked")
+	// private boolean prepareData() {
+	// // check if measurements are added in the last interval, if not nothing needs to be sent.
+	// if (sensorDataObjects.isEmpty() && objectStorages.isEmpty()) {
+	// return false;
+	// }
+	//
+	// // switch the references so that new data is stored while sending
+	// temp = sensorDataObjects;
+	// sensorDataObjects = measurementsProcessing;
+	// measurementsProcessing = (Map<String, DefaultData>) temp;
+	//
+	// temp = objectStorages;
+	// objectStorages = objectStoragesProcessing;
+	// objectStoragesProcessing = (Map<String, IObjectStorage>) temp;
+	//
+	// // copy the measurements values to a new list
+	// List<DefaultData> tempList = new ArrayList<DefaultData>(measurementsProcessing.values());
+	// measurementsProcessing.clear();
+	//
+	// // iterate the object storages and get the value objects which will be stored in the same
+	// // list.
+	// for (IObjectStorage objectStorage : objectStoragesProcessing.values()) {
+	// tempList.add(objectStorage.finalizeDataObject());
+	// }
+	// objectStoragesProcessing.clear();
+	//
+	// // Now give the strategy the list
+	// bufferStrategy.addMeasurements(tempList);
+	//
+	// return true;
+	// }
 
-		// switch the references so that new data is stored while sending
-		temp = sensorDataObjects;
-		sensorDataObjects = measurementsProcessing;
-		measurementsProcessing = (Map<String, DefaultData>) temp;
-
-		temp = objectStorages;
-		objectStorages = objectStoragesProcessing;
-		objectStoragesProcessing = (Map<String, IObjectStorage>) temp;
-
-		// copy the measurements values to a new list
-		List<DefaultData> tempList = new ArrayList<DefaultData>(measurementsProcessing.values());
-		measurementsProcessing.clear();
-
-		// iterate the object storages and get the value objects which will be stored in the same
-		// list.
-		for (IObjectStorage objectStorage : objectStoragesProcessing.values()) {
-			tempList.add(objectStorage.finalizeDataObject());
-		}
-		objectStoragesProcessing.clear();
-
-		// Now give the strategy the list
-		bufferStrategy.addMeasurements(tempList);
-
-		return true;
-	}
-
-	/**
-	 * sends the data.
-	 *
-	 * <b> WARNING: This code is supposed to be run single-threaded! We ensure single-threaded
-	 * invocation by only calling this method within the single <code>SendingThread</code>. During
-	 * the JVM shutdown (in the shutdownhook), it is also ensured that this code is run
-	 * singlethreaded. </b>
-	 */
-	private void send() {
-		try {
-			while (bufferStrategy.hasNext()) {
-				// if we are not connected keep data in buffer strategy
-				if (!connection.isConnected()) {
-					return;
-				}
-
-				List<DefaultData> dataToSend = bufferStrategy.next();
-				connection.sendDataObjects(dataToSend);
-				sendingExceptionNotice = false;
-			}
-		} catch (ServerUnavailableException serverUnavailableException) {
-			if (serverUnavailableException.isServerTimeout()) {
-				log.warn("Timeout on server when sending actual data. Data might be lost!", serverUnavailableException);
-			} else {
-				if (!sendingExceptionNotice) {
-					sendingExceptionNotice = true;
-					log.error("Connection problem appeared, stopping sending actual data!", serverUnavailableException);
-				}
-			}
-		} catch (Throwable throwable) { // NOPMD NOCHK
-			if (!sendingExceptionNotice) {
-				sendingExceptionNotice = true;
-				log.error("Connection problem appeared, stopping sending actual data!", throwable);
-			}
-		}
-	}
+	// /**
+	// * sends the data.
+	// *
+	// * <b> WARNING: This code is supposed to be run single-threaded! We ensure single-threaded
+	// * invocation by only calling this method within the single <code>SendingThread</code>. During
+	// * the JVM shutdown (in the shutdownhook), it is also ensured that this code is run
+	// * singlethreaded. </b>
+	// */
+	// private void send() {
+	// try {
+	// while (bufferStrategy.hasNext()) {
+	// // if we are not connected keep data in buffer strategy
+	// if (!connection.isConnected()) {
+	// return;
+	// }
+	//
+	// List<DefaultData> dataToSend = bufferStrategy.next();
+	// connection.sendDataObjects(dataToSend);
+	// sendingExceptionNotice = false;
+	// }
+	// } catch (ServerUnavailableException serverUnavailableException) {
+	// if (serverUnavailableException.isServerTimeout()) {
+	// log.warn("Timeout on server when sending actual data. Data might be lost!",
+	// serverUnavailableException);
+	// } else {
+	// if (!sendingExceptionNotice) {
+	// sendingExceptionNotice = true;
+	// log.error("Connection problem appeared, stopping sending actual data!",
+	// serverUnavailableException);
+	// }
+	// }
+	// } catch (Throwable throwable) { // NOPMD NOCHK
+	// if (!sendingExceptionNotice) {
+	// sendingExceptionNotice = true;
+	// log.error("Connection problem appeared, stopping sending actual data!", throwable);
+	// }
+	// }
+	// }
 
 	/**
 	 * This implementation of a {@link Thread} is used to prepare the data and value objects that
@@ -586,92 +665,92 @@ public class CoreService implements ICoreService, InitializingBean, DisposableBe
 	 * @author Ivan Senic
 	 * @author Stefan Siegl
 	 */
-	private class PreparingThread extends Thread {
+	// private class PreparingThread extends Thread {
+	//
+	// /**
+	// * Creates a new <code>PreparingThread</code> as daemon.
+	// */
+	// public PreparingThread() {
+	// setName("inspectit-preparing-thread");
+	// setDaemon(true);
+	// }
+	//
+	// /**
+	// * {@inheritDoc}
+	// */
+	// @Override
+	// public void run() {
+	// while (!isInterrupted()) {
+	// // wait for activation
+	// synchronized (this) {
+	// try {
+	// if (!isInterrupted()) {
+	// wait();
+	// }
+	// } catch (InterruptedException e) {
+	// log.error("Preparing thread interrupted and shutting down!");
+	// break; // we were interrupted during waiting and close ourself down.
+	// }
+	// }
+	//
+	// // We got a request from one of the send strategies.
+	//
+	// boolean newDataAvailable = prepareData();
+	// if (newDataAvailable) {
+	// // Notify sending thread
+	// synchronized (sendingThread) {
+	// sendingThread.notifyAll();
+	// }
+	// }
+	// }
+	// }
+	// }
 
-		/**
-		 * Creates a new <code>PreparingThread</code> as daemon.
-		 */
-		public PreparingThread() {
-			setName("inspectit-preparing-thread");
-			setDaemon(true);
-		}
-
-		/**
-		 * {@inheritDoc}
-		 */
-		@Override
-		public void run() {
-			while (!isInterrupted()) {
-				// wait for activation
-				synchronized (this) {
-					try {
-						if (!isInterrupted()) {
-							wait();
-						}
-					} catch (InterruptedException e) {
-						log.error("Preparing thread interrupted and shutting down!");
-						break; // we were interrupted during waiting and close ourself down.
-					}
-				}
-
-				// We got a request from one of the send strategies.
-
-				boolean newDataAvailable = prepareData();
-				if (newDataAvailable) {
-					// Notify sending thread
-					synchronized (sendingThread) {
-						sendingThread.notifyAll();
-					}
-				}
-			}
-		}
-	}
-
-	/**
-	 * This implementation of a {@link Thread} is taking the data from the {@link IBufferStrategy}
-	 * and sending it to the CMR.
-	 * <p>
-	 * Note that only one thread of this type can be started. Otherwise serious synchronization
-	 * problems can appear.
-	 *
-	 * @author Ivan Senic
-	 * @author Stefan Siegl
-	 */
-	private class SendingThread extends Thread {
-
-		/**
-		 * Creates a new <code>SendingThread</code> as daemon.
-		 */
-		public SendingThread() {
-			setName("inspectit-sending-thread");
-			setDaemon(true);
-		}
-
-		/**
-		 * {@inheritDoc}
-		 */
-		@Override
-		public void run() {
-			while (!isInterrupted()) {
-				// wait for activation if there is nothing to send
-				if (!bufferStrategy.hasNext()) {
-					synchronized (this) {
-						try {
-							if (!isInterrupted()) {
-								wait();
-							}
-						} catch (InterruptedException e) {
-							log.error("Sending thread interrupted and shuting down!");
-							break; // we were interrupted during waiting and close ourself down.
-						}
-					}
-				}
-
-				// send the data
-				send();
-			}
-		}
-	}
+	// /**
+	// * This implementation of a {@link Thread} is taking the data from the {@link IBufferStrategy}
+	// * and sending it to the CMR.
+	// * <p>
+	// * Note that only one thread of this type can be started. Otherwise serious synchronization
+	// * problems can appear.
+	// *
+	// * @author Ivan Senic
+	// * @author Stefan Siegl
+	// */
+	// private class SendingThread extends Thread {
+	//
+	// /**
+	// * Creates a new <code>SendingThread</code> as daemon.
+	// */
+	// public SendingThread() {
+	// setName("inspectit-sending-thread");
+	// setDaemon(true);
+	// }
+	//
+	// /**
+	// * {@inheritDoc}
+	// */
+	// @Override
+	// public void run() {
+	// while (!isInterrupted()) {
+	// // wait for activation if there is nothing to send
+	// if (!bufferStrategy.hasNext()) {
+	// synchronized (this) {
+	// try {
+	// if (!isInterrupted()) {
+	// wait();
+	// }
+	// } catch (InterruptedException e) {
+	// log.error("Sending thread interrupted and shuting down!");
+	// break; // we were interrupted during waiting and close ourself down.
+	// }
+	// }
+	// }
+	//
+	// // send the data
+	// send();
+	// }
+	// }
+	// }
 
 	/**
 	 * Used for the JVM Shutdown. Ensure that all threads are closed correctly and tries to send
@@ -690,27 +769,42 @@ public class CoreService implements ICoreService, InitializingBean, DisposableBe
 			// safety on the entities used for preparing and sending. If we get interrupted while
 			// waiting, then we stop the ShutdownHook completely. We'll wait only 10 seconds as
 			// a maximum for each join and then continue
-			try {
-				preparingThread.join(10000);
-			} catch (InterruptedException e) {
-				log.error("ShutdownHook was interrupted while waiting for the preparing thread to shut down. Stopping the shutdown hook");
-				return;
-			}
+			// try {
+			// preparingThread.join(10000);
+			// } catch (InterruptedException e) {
+			// log.error("ShutdownHook was interrupted while waiting for the preparing thread to
+			// shut down. Stopping the shutdown hook");
+			// return;
+			// }
 
-			try {
-				sendingThread.join(10000);
-			} catch (InterruptedException e) {
-				log.error("ShutdownHook was interrupted while waiting for the sending thread to shut down. Stopping the shutdown hook");
-				return;
-			}
+			// try {
+			// sendingThread.join(10000);
+			// } catch (InterruptedException e) {
+			// log.error("ShutdownHook was interrupted while waiting for the sending thread to shut
+			// down. Stopping the shutdown hook");
+			// return;
+			// }
 
-			// Try to prepare data for the last time.
-			CoreService.this.prepareData();
+			// // Try to prepare data for the last time.
+			// CoreService.this.prepareData();
 
 			// Try to send data for the last time. We do not set a timeout here, the user can simply
 			// kill the process for good if it takes too long.
-			CoreService.this.send();
+			// CoreService.this.send();
 
+			// the internal processing of the disruptor halts the consumer after all events have
+			// been processed
+			// TODO: what happens if the consumer buffer contains elements after the rignbuffer
+			// elements have been processed
+			try {
+				disruptor.shutdown(60, TimeUnit.SECONDS);
+			} catch (TimeoutException e) {
+				// TODO Auto-generated catch block
+				// e.printStackTrace();
+				log.info(e.getMessage());
+			}
+
+			// TODO: try to send the last time data
 			// At the end unregister platform
 			log.info("Unregistering the Agent");
 			platformManager.unregisterPlatform();
@@ -733,4 +827,29 @@ public class CoreService implements ICoreService, InitializingBean, DisposableBe
 		stop();
 	}
 
+	/**
+	 * {@inheritDoc}
+	 */
+	@Override
+	public void addDefaultData(DefaultData defaultData) {
+		// TODO: change to tryNext to avoid blocking
+		try {
+			// Grab the next sequence
+			long sequence = ringBuffer.tryNext();
+			try {
+				// Get the entry in the Disruptor for the sequence
+				DefaultDataWrapper defaultDataWrapper = ringBuffer.get(sequence);
+				defaultDataWrapper.setDefaultData(defaultData); // Simply change the reference for
+				// now
+			} finally {
+				// System.out.println("Publish event " + sequence);
+				ringBuffer.publish(sequence);
+			}
+		} catch (InsufficientCapacityException e) {
+			log.error("Disruptor Capacity reached. Dropping data...");
+			System.out.println("Disruptor Capacity reached. Dropping data...");
+			// TODO Auto-generated catch block
+			// e.printStackTrace();
+		}
+	}
 }

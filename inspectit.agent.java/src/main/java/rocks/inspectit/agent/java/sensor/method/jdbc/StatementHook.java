@@ -124,35 +124,26 @@ public class StatementHook implements IMethodHook {
 
 			double duration = endTime - startTime;
 			String sql = parameters[0].toString();
-			SqlStatementData sqlData = (SqlStatementData) coreService.getMethodSensorData(sensorTypeId, methodId, sql);
 
-			if (null == sqlData) {
-				try {
-					Timestamp timestamp = new Timestamp(System.currentTimeMillis() - Math.round(duration));
-					long platformId = platformManager.getPlatformId();
+			try {
+				Timestamp timestamp = new Timestamp(System.currentTimeMillis() - Math.round(duration));
+				long platformId = platformManager.getPlatformId();
 
-					sqlData = new SqlStatementData(timestamp, platformId, sensorTypeId, methodId);
-					sqlData.setPreparedStatement(false);
-					sqlData.setSql(strConstraint.crop(sql));
-					sqlData.setDuration(duration);
-					sqlData.calculateMin(duration);
-					sqlData.calculateMax(duration);
-					sqlData.setCount(1L);
-
-					// populate the connection meta data.
-					connectionMetaDataStorage.populate(sqlData, statementReflectionCache.getConnection(object.getClass(), object));
-					coreService.addMethodSensorData(sensorTypeId, methodId, sql, sqlData);
-				} catch (IdNotAvailableException e) {
-					if (LOG.isDebugEnabled()) {
-						LOG.debug("Could not save the sql data because of an unavailable id. " + e.getMessage());
-					}
-				}
-			} else {
-				sqlData.increaseCount();
-				sqlData.addDuration(duration);
-
+				SqlStatementData sqlData = new SqlStatementData(timestamp, platformId, sensorTypeId, methodId);
+				sqlData.setPreparedStatement(false);
+				sqlData.setSql(strConstraint.crop(sql));
+				sqlData.setDuration(duration);
 				sqlData.calculateMin(duration);
 				sqlData.calculateMax(duration);
+				sqlData.setCount(1L);
+
+				// populate the connection meta data.
+				connectionMetaDataStorage.populate(sqlData, statementReflectionCache.getConnection(object.getClass(), object));
+				coreService.addDefaultData(sqlData);
+			} catch (IdNotAvailableException e) {
+				if (LOG.isDebugEnabled()) {
+					LOG.debug("Could not save the sql data because of an unavailable id. " + e.getMessage());
+				}
 			}
 		}
 	}

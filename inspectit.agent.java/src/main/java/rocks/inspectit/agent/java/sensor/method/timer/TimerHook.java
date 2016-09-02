@@ -15,11 +15,11 @@ import rocks.inspectit.agent.java.core.IPlatformManager;
 import rocks.inspectit.agent.java.core.IdNotAvailableException;
 import rocks.inspectit.agent.java.hooking.IConstructorHook;
 import rocks.inspectit.agent.java.hooking.IMethodHook;
-import rocks.inspectit.agent.java.sensor.method.averagetimer.AverageTimerHook;
 import rocks.inspectit.agent.java.util.StringConstraint;
 import rocks.inspectit.agent.java.util.ThreadLocalStack;
 import rocks.inspectit.agent.java.util.Timer;
 import rocks.inspectit.shared.all.communication.data.ParameterContentData;
+import rocks.inspectit.shared.all.communication.data.TimerData;
 
 /**
  * The hook implementation for the timer sensor. It uses the {@link ThreadLocalStack} class to save
@@ -58,12 +58,6 @@ public class TimerHook implements IMethodHook, IConstructorHook {
 	 * The property accessor.
 	 */
 	private final IPropertyAccessor propertyAccessor;
-
-	/**
-	 * The timer storage factory which returns a new {@link ITimerStorage} object every time we
-	 * request one. The returned storage depends on the settings in the configuration file.
-	 */
-	private final TimerStorageFactory timerStorageFactory = TimerStorageFactory.getFactory();
 
 	/**
 	 * The StringConstraint to ensure a maximum length of strings.
@@ -131,7 +125,6 @@ public class TimerHook implements IMethodHook, IConstructorHook {
 			LOG.warn("Exception in the TimerHook.", e);
 		}
 
-		timerStorageFactory.setParameters(param);
 		this.strConstraint = new StringConstraint(param);
 	}
 
@@ -175,11 +168,9 @@ public class TimerHook implements IMethodHook, IConstructorHook {
 		}
 
 		List<ParameterContentData> parameterContentData = null;
-		String prefix = null;
 		// check if some properties need to be accessed and saved
 		if (rsc.isPropertyAccess()) {
 			parameterContentData = propertyAccessor.getParameterContentData(rsc.getPropertyAccessorList(), object, parameters, result);
-			prefix = parameterContentData.toString();
 
 			// crop the content strings of all ParameterContentData but leave the prefix as it is
 			for (ParameterContentData contentData : parameterContentData) {
@@ -187,27 +178,20 @@ public class TimerHook implements IMethodHook, IConstructorHook {
 			}
 		}
 
-		ITimerStorage storage = (ITimerStorage) coreService.getObjectStorage(sensorTypeId, methodId, prefix);
+		try {
+			long platformId = platformManager.getPlatformId();
 
-		if (null == storage) {
-			try {
-				long platformId = platformManager.getPlatformId();
+			Timestamp timestamp = new Timestamp(System.currentTimeMillis() - Math.round(duration));
 
-				Timestamp timestamp = new Timestamp(System.currentTimeMillis() - Math.round(duration));
+			TimerData timerData = new TimerData(timestamp, platformId, sensorTypeId, methodId, parameterContentData);
+			addTimes(timerData, duration, cpuDuration);
+			timerData.setCharting("true".equals(rsc.getSettings().get("charting")));
 
-				boolean charting = Boolean.TRUE.equals(rsc.getSettings().get("charting"));
-
-				storage = timerStorageFactory.newStorage(timestamp, platformId, sensorTypeId, methodId, parameterContentData, charting);
-				storage.addData(duration, cpuDuration);
-
-				coreService.addObjectStorage(sensorTypeId, methodId, prefix, storage);
-			} catch (IdNotAvailableException e) {
-				if (LOG.isDebugEnabled()) {
-					LOG.debug("Could not save the timer data because of an unavailable id. " + e.getMessage());
-				}
+			coreService.addDefaultData(timerData);
+		} catch (IdNotAvailableException e) {
+			if (LOG.isDebugEnabled()) {
+				LOG.debug("Could not save the timer data because of an unavailable id. " + e.getMessage());
 			}
-		} else {
-			storage.addData(duration, cpuDuration);
 		}
 	}
 
@@ -235,4 +219,19 @@ public class TimerHook implements IMethodHook, IConstructorHook {
 		secondAfterBody(coreService, methodId, sensorTypeId, object, parameters, null, rsc);
 	}
 
+	private void addTimes(TimerData timerData, double time, double cpuTime) {
+		timerData.increaseCount();
+		timerData.addDuration(time);
+
+		timerData.calculateMax(time);
+		timerData.calculateMin(time);
+
+		// only add the cpu time if its greater than zero
+		if (cpuTime >= 0) {
+			timerData.addCpuDuration(cpuTime);
+
+			timerData.calculateCpuMax(cpuTime);
+			timerData.calculateCpuMin(cpuTime);
+		}
+	}
 }

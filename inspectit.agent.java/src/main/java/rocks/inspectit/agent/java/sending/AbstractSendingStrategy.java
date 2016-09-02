@@ -32,7 +32,7 @@ public abstract class AbstractSendingStrategy implements ISendingStrategy, Initi
 	 * Send the data to the server.
 	 */
 	protected final void sendNow() {
-		coreService.sendData();
+		// coreService.sendData();
 	}
 
 	/**

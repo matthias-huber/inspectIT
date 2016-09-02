@@ -143,37 +143,29 @@ public class PreparedStatementHook implements IMethodHook, IConstructorHook {
 			String sql = statementStorage.getPreparedStatement(object);
 			if (null != sql) {
 				double duration = endTime - startTime;
-				SqlStatementData sqlData = (SqlStatementData) coreService.getMethodSensorData(sensorTypeId, methodId, sql);
-				if (null == sqlData) {
-					try {
-						Timestamp timestamp = new Timestamp(System.currentTimeMillis() - Math.round(duration));
-						List<String> params = statementStorage.getParameters(object);
-						long platformId = platformManager.getPlatformId();
 
-						sqlData = new SqlStatementData(timestamp, platformId, sensorTypeId, methodId);
-						sqlData.setPreparedStatement(true);
-						sqlData.setSql(strConstraint.crop(sql));
-						sqlData.setDuration(duration);
-						sqlData.calculateMin(duration);
-						sqlData.calculateMax(duration);
-						sqlData.setCount(1L);
-						sqlData.setParameterValues(params);
+				try {
+					Timestamp timestamp = new Timestamp(System.currentTimeMillis() - Math.round(duration));
+					List<String> params = statementStorage.getParameters(object);
+					long platformId = platformManager.getPlatformId();
 
-						// populate the connection meta data.
-						connectionMetaDataStorage.populate(sqlData, statementReflectionCache.getConnection(object.getClass(), object));
-
-						coreService.addMethodSensorData(sensorTypeId, methodId, sql, sqlData);
-					} catch (IdNotAvailableException e) {
-						if (log.isDebugEnabled()) {
-							log.debug("Could not save the sql data because of an unavailable id. " + e.getMessage());
-						}
-					}
-				} else {
-					sqlData.increaseCount();
-					sqlData.addDuration(duration);
-
+					SqlStatementData sqlData = new SqlStatementData(timestamp, platformId, sensorTypeId, methodId);
+					sqlData.setPreparedStatement(true);
+					sqlData.setSql(strConstraint.crop(sql));
+					sqlData.setDuration(duration);
 					sqlData.calculateMin(duration);
 					sqlData.calculateMax(duration);
+					sqlData.setCount(1L);
+					sqlData.setParameterValues(params);
+
+					// populate the connection meta data.
+					connectionMetaDataStorage.populate(sqlData, statementReflectionCache.getConnection(object.getClass(), object));
+
+					coreService.addDefaultData(sqlData);
+				} catch (IdNotAvailableException e) {
+					if (log.isDebugEnabled()) {
+						log.debug("Could not save the sql data because of an unavailable id. " + e.getMessage());
+					}
 				}
 			} else {
 				// the sql was not found, we'll try again

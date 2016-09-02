@@ -107,7 +107,7 @@ public class ExceptionSensorHook implements IExceptionSensorHook {
 				exceptionDataHolder.set(new IdentityHashToDataObject(identityHash, data));
 
 				// adding the data object to the core service
-				coreService.addExceptionSensorData(sensorTypeId, data.getThrowableIdentityHashCode(), data);
+				coreService.addDefaultData(data);
 			} catch (IdNotAvailableException e) {
 				if (LOG.isDebugEnabled()) {
 					LOG.debug("Could not start exception sequence because of a (currently) not mapped ID");
@@ -168,7 +168,7 @@ public class ExceptionSensorHook implements IExceptionSensorHook {
 				}
 
 				// adding the data object to the core service
-				coreService.addExceptionSensorData(sensorTypeId, data.getThrowableIdentityHashCode(), data);
+				coreService.addDefaultData(data);
 			} catch (IdNotAvailableException e) {
 				if (LOG.isDebugEnabled()) {
 					LOG.debug("Could not start exception sequence because of a (currently) not mapped ID");
@@ -222,7 +222,7 @@ public class ExceptionSensorHook implements IExceptionSensorHook {
 				}
 
 				// adding the data object to the core service
-				coreService.addExceptionSensorData(sensorTypeId, data.getThrowableIdentityHashCode(), data);
+				coreService.addDefaultData(data);
 			} catch (IdNotAvailableException e) {
 				if (LOG.isDebugEnabled()) {
 					LOG.debug("Could not start exception sequence because of a (currently) not mapped ID");

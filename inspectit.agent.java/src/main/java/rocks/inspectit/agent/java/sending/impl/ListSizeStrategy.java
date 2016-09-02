@@ -31,7 +31,7 @@ public class ListSizeStrategy extends AbstractSendingStrategy implements ListLis
 	 */
 	@Override
 	public void startStrategy() {
-		getCoreService().addListListener(this);
+		// getCoreService().addListListener(this);
 	}
 
 	/**
@@ -39,7 +39,7 @@ public class ListSizeStrategy extends AbstractSendingStrategy implements ListLis
 	 */
 	@Override
 	public void stop() {
-		getCoreService().removeListListener(this);
+		// getCoreService().removeListListener(this);
 	}
 
 	/**

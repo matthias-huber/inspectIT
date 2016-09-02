@@ -311,7 +311,7 @@ public class HttpHook implements IMethodHook {
 						data.setCharting(charting);
 
 						// returning gathered information
-						coreService.addMethodSensorData(sensorTypeId, methodId, null, data);
+						coreService.addDefaultData(data);
 					} catch (IdNotAvailableException e) {
 						if (LOG.isDebugEnabled()) {
 							LOG.debug("Could not save the timer data because of an unavailable id. " + e.getMessage());
